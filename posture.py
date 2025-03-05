@@ -209,11 +209,12 @@ class Posture(object):
         self.weight = [0.3, 0.5, 0.2]
         self.threshold = 1
 
-    def imageflow(self, video_path, change_pixmap_signal):
+    def imageflow(self, video_path, change_pixmap_signal, progress_signal=None):
         cap = cv2.VideoCapture(video_path)
         width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
         height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
         fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # 获取总帧数
 
         file = video_path.split("/")[-1]
         file_name = file.split(".")[0]
@@ -297,7 +298,12 @@ class Posture(object):
                     break
             else:
                 break
+            
+            # 更新进度
             frame_id += 1
+            if progress_signal and total_frames > 0:
+                progress = int((frame_id / total_frames) * 100)
+                progress_signal.emit(progress)
 
             # 将 OpenCV 图像转换为 QImage
             qt_img = self.convert_cv_to_qt(frame)
@@ -335,6 +341,9 @@ class Posture(object):
         cv2.putText(canvas_abdominal_contraction, f'Score: {d_abdominal_contraction["score"]}', (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
         cv2.imwrite(os.path.join(save_folder, "abdominal_contraction.jpg"), canvas_abdominal_contraction)
+        
+        # 返回结果文件夹路径
+        return save_folder
 
     def convert_cv_to_qt(self, frame):
         """将 OpenCV 图像转换为 QImage"""

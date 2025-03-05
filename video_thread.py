@@ -10,17 +10,28 @@ from posture import Posture
 # 创建一个自动打分的视频处理线程
 class AutoScoreThread(QThread):
     change_pixmap_signal = pyqtSignal(QImage)
+    progress_signal = pyqtSignal(int)
+    finished_signal = pyqtSignal()
+    result_folder_signal = pyqtSignal(str)
 
     def __init__(self, video_path):
         super().__init__()
         self.video_path = video_path
+        self._is_running = True
 
     def run(self):
         # 调用 Posture 的 imageflow 方法
         posture = Posture()
-        posture.imageflow(self.video_path, self.change_pixmap_signal)
+        result_folder = posture.imageflow(self.video_path, self.change_pixmap_signal, self.progress_signal)
+        
+        if result_folder:
+            self.result_folder_signal.emit(result_folder)
+            
+        self.finished_signal.emit()
 
-    # 其他必要的方法
+    def stop(self):
+        self._is_running = False
+        self.wait()
 
 
 # 创建一个视频处理线程

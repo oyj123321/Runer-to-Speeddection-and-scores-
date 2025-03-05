@@ -364,7 +364,18 @@ class MainWindow(QWidget):
             
         # 创建评分线程
         self.auto_score_thread = AutoScoreThread(self.score_video_path)
+        
+        # 连接信号
         self.auto_score_thread.change_pixmap_signal.connect(self.update_image)
+        self.auto_score_thread.progress_signal.connect(self.update_progress)
+        self.auto_score_thread.finished_signal.connect(self.score_processing_finished)
+        self.auto_score_thread.result_folder_signal.connect(self.set_result_folder)
+        
+        # 重置进度条
+        self.progressBar.setValue(0)
+        self.progressBar.setVisible(True)
+        
+        # 启动线程
         self.auto_score_thread.start()
         
         # 更新状态
@@ -372,9 +383,31 @@ class MainWindow(QWidget):
         self.status_label.setText(f"正在处理评分视频: {file_name}")
         self.progress_label.setText(f"评分中: {file_name}")
         
-        # 设置结果文件夹路径
-        file_name_no_ext = file_name.split(".")[0]
-        self.last_results_folder = os.path.join("./", file_name_no_ext)
+        # 禁用按钮，防止重复点击
+        self.autoScoreButton.setEnabled(False)
+        self.openScoreButton.setEnabled(False)
+
+    def set_result_folder(self, folder_path):
+        """设置结果文件夹路径"""
+        self.last_results_folder = folder_path
+        print(f"结果保存在: {folder_path}")
+
+    def score_processing_finished(self):
+        """评分处理完成的回调函数"""
+        # 更新状态
+        self.progress_label.setText("评分完成")
+        self.status_label.setText("评分处理已完成")
+        
+        # 启用按钮
+        self.viewResultsButton.setEnabled(True)
+        self.autoScoreButton.setEnabled(True)
+        self.openScoreButton.setEnabled(True)
+        
+        # 显示消息
+        QMessageBox.information(self, "处理完成", "视频评分处理已完成，可查看评分结果。")
+        
+        # 自动显示结果
+        self.view_results()
 
     def process_video(self):
         # 确保已选择测速视频
@@ -391,21 +424,28 @@ class MainWindow(QWidget):
         file_name = self.speed_video_path.split('/')[-1]
         self.progress_label.setText(f"测速中: {file_name}")
         self.status_label.setText(f"正在处理测速视频: {file_name}")
+        
+        # 禁用按钮，防止重复点击
+        self.processButton.setEnabled(False)
+        self.openSpeedButton.setEnabled(False)
 
     def processing_finished(self):
         # 区分是测速还是评分完成
         if self.sender() == self.video_thread:
             self.progress_label.setText("测速完成")
             self.status_label.setText("测速处理已完成")
+            
+            # 启用按钮
+            self.processButton.setEnabled(True)
+            self.openSpeedButton.setEnabled(True)
+            
             QMessageBox.information(self, "处理完成", "视频测速处理已完成。")
         else:
-            self.progress_label.setText("评分完成")
-            self.status_label.setText("评分处理已完成")
-            self.viewResultsButton.setEnabled(True)
-            QMessageBox.information(self, "处理完成", "视频评分处理已完成，可查看评分结果。")
+            # 这部分已经移到score_processing_finished方法中
+            pass
 
     def update_image(self, qt_img):
-        # 使用处理后的帧图像更新标签
+        """更新图像显示"""
         self.label.setPixmap(QPixmap.fromImage(qt_img).scaled(
             self.label.width(), self.label.height(),
             Qt.KeepAspectRatio, Qt.SmoothTransformation
@@ -413,76 +453,89 @@ class MainWindow(QWidget):
 
     def view_results(self):
         """查看评分结果"""
-        if self.last_results_folder and os.path.exists(self.last_results_folder):
-            try:
-                result_text = "<html><body style='text-align:center;'>"
-                result_text += "<h3 style='color:#3498db;'>评分结果</h3>"
-                result_text += "<table style='margin:0 auto; border-collapse:collapse; width:90%;'>"
-                result_text += "<tr style='background-color:#2c3e50;'><th style='padding:8px; border:1px solid #3498db;'>评分项目</th><th style='padding:8px; border:1px solid #3498db;'>得分</th><th style='padding:8px; border:1px solid #3498db;'>状态</th></tr>"
+        if not self.last_results_folder or not os.path.exists(self.last_results_folder):
+            QMessageBox.warning(self, "无结果", "没有可用的评分结果或结果文件夹不存在。")
+            return
+            
+        try:
+            result_text = "<html><body style='text-align:center;'>"
+            result_text += "<h3 style='color:#3498db;'>评分结果</h3>"
+            result_text += "<table style='margin:0 auto; border-collapse:collapse; width:90%;'>"
+            result_text += "<tr style='background-color:#2c3e50;'><th style='padding:8px; border:1px solid #3498db;'>评分项目</th><th style='padding:8px; border:1px solid #3498db;'>得分</th><th style='padding:8px; border:1px solid #3498db;'>状态</th></tr>"
+            
+            # 读取各项评分
+            take_off_path = os.path.join(self.last_results_folder, "take_off.jpg")
+            hip_extension_path = os.path.join(self.last_results_folder, "hip_extension.jpg")
+            abdominal_contraction_path = os.path.join(self.last_results_folder, "abdominal_contraction.jpg")
+            
+            # 尝试从图像中读取实际分数
+            import cv2
+            import re
+            
+            def extract_score(image_path):
+                if not os.path.exists(image_path):
+                    return "未生成", "❌"
                 
-                # 读取各项评分
-                take_off_path = os.path.join(self.last_results_folder, "take_off.jpg")
-                hip_extension_path = os.path.join(self.last_results_folder, "hip_extension.jpg")
-                abdominal_contraction_path = os.path.join(self.last_results_folder, "abdominal_contraction.jpg")
-                
-                # 尝试从图像中读取实际分数
-                import cv2
-                import re
-                
-                def extract_score(image_path):
-                    if not os.path.exists(image_path):
-                        return "未生成", "❌"
+                try:
+                    # 读取图像
+                    img = cv2.imread(image_path)
+                    # 转换为灰度图像
+                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                     
-                    try:
-                        # 读取图像
-                        img = cv2.imread(image_path)
-                        # 转换为灰度图像
-                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                        
-                        # 使用OCR提取文本（这里使用简化方法，通过图像检测分数）
-                        # 实际应用中可以使用tesseract或其他OCR库
-                        # 这里我们假设分数已经从文件名或其他方式获取
-                        
-                        # 提取分数的简化方法 - 检查图像左上角的文本区域
-                        score = "获取中..." 
-                        
-                        # 简单方法：从文件名获取最后修改时间作为替代
-                        import time
-                        modified_time = os.path.getmtime(image_path)
-                        # 将时间戳转换为可读格式
-                        time_str = time.strftime("%H:%M:%S", time.localtime(modified_time))
-                        
-                        return f"已生成 ({time_str})", "✅"
-                    except Exception as e:
-                        print(f"Error extracting score: {e}")
-                        return "读取错误", "⚠️"
+                    # 使用OCR提取文本（这里使用简化方法，通过图像检测分数）
+                    # 实际应用中可以使用tesseract或其他OCR库
+                    # 这里我们假设分数已经从文件名或其他方式获取
+                    
+                    # 提取分数的简化方法 - 检查图像左上角的文本区域
+                    score = "获取中..." 
+                    
+                    # 简单方法：从文件名获取最后修改时间作为替代
+                    import time
+                    modified_time = os.path.getmtime(image_path)
+                    # 将时间戳转换为可读格式
+                    time_str = time.strftime("%H:%M:%S", time.localtime(modified_time))
+                    
+                    return f"已生成 ({time_str})", "✅"
+                except Exception as e:
+                    print(f"Error extracting score: {e}")
+                    return "读取错误", "⚠️"
+            
+            # 获取各项评分状态
+            take_off_score, take_off_status = extract_score(take_off_path)
+            hip_extension_score, hip_extension_status = extract_score(hip_extension_path)
+            abdominal_contraction_score, abdominal_contraction_status = extract_score(abdominal_contraction_path)
+            
+            # 添加到结果表格
+            result_text += f"<tr><td style='padding:8px; border:1px solid #3498db;'>起跳姿态</td><td style='padding:8px; border:1px solid #3498db;'>{take_off_score}</td><td style='padding:8px; border:1px solid #3498db;'>{take_off_status}</td></tr>"
+            result_text += f"<tr><td style='padding:8px; border:1px solid #3498db;'>髋关节伸展</td><td style='padding:8px; border:1px solid #3498db;'>{hip_extension_score}</td><td style='padding:8px; border:1px solid #3498db;'>{hip_extension_status}</td></tr>"
+            result_text += f"<tr><td style='padding:8px; border:1px solid #3498db;'>腹部收缩</td><td style='padding:8px; border:1px solid #3498db;'>{abdominal_contraction_score}</td><td style='padding:8px; border:1px solid #3498db;'>{abdominal_contraction_status}</td></tr>"
+            
+            result_text += "</table><br>"
+            result_text += f"<p style='font-size:12px; color:#7f8c8d;'>结果保存在文件夹:<br>{self.last_results_folder}</p>"
+            result_text += "</body></html>"
+            
+            self.results_label.setText(result_text)
+            
+            # 显示消息
+            QMessageBox.information(self, "评分结果", "评分结果已生成，详情请查看结果区域。\n图像保存在: " + self.last_results_folder)
+            
+            # 打开结果文件夹
+            import platform
+            import subprocess
+            
+            if platform.system() == "Windows":
+                os.startfile(self.last_results_folder)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", self.last_results_folder])
+            else:  # Linux
+                subprocess.Popen(["xdg-open", self.last_results_folder])
                 
-                # 获取各项评分状态
-                take_off_score, take_off_status = extract_score(take_off_path)
-                hip_extension_score, hip_extension_status = extract_score(hip_extension_path)
-                abdominal_contraction_score, abdominal_contraction_status = extract_score(abdominal_contraction_path)
-                
-                # 添加到结果表格
-                result_text += f"<tr><td style='padding:8px; border:1px solid #3498db;'>起跳姿态</td><td style='padding:8px; border:1px solid #3498db;'>{take_off_score}</td><td style='padding:8px; border:1px solid #3498db;'>{take_off_status}</td></tr>"
-                result_text += f"<tr><td style='padding:8px; border:1px solid #3498db;'>髋关节伸展</td><td style='padding:8px; border:1px solid #3498db;'>{hip_extension_score}</td><td style='padding:8px; border:1px solid #3498db;'>{hip_extension_status}</td></tr>"
-                result_text += f"<tr><td style='padding:8px; border:1px solid #3498db;'>腹部收缩</td><td style='padding:8px; border:1px solid #3498db;'>{abdominal_contraction_score}</td><td style='padding:8px; border:1px solid #3498db;'>{abdominal_contraction_status}</td></tr>"
-                
-                result_text += "</table><br>"
-                result_text += f"<p style='font-size:12px; color:#7f8c8d;'>结果保存在文件夹:<br>{self.last_results_folder}</p>"
-                result_text += "</body></html>"
-                
-                self.results_label.setText(result_text)
-                
-                # 显示消息
-                QMessageBox.information(self, "评分结果", "评分结果已生成，详情请查看结果区域。\n图像保存在: " + self.last_results_folder)
-            except Exception as e:
-                print(f"Error displaying results: {e}")
-                QMessageBox.warning(self, "结果显示错误", f"显示结果时发生错误: {str(e)}")
-        else:
-            QMessageBox.warning(self, "未找到结果", "未找到评分结果或结果文件夹不存在。")
+        except Exception as e:
+            print(f"Error displaying results: {e}")
+            QMessageBox.warning(self, "结果显示错误", f"显示结果时发生错误: {str(e)}")
 
     def update_progress(self, value):
-        # 更新进度条
+        """更新进度条"""
         self.progressBar.setValue(value)
 
     def apply_dark_theme(self):
