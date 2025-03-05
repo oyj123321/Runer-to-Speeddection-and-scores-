@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog,
-                             QMessageBox, QProgressBar, QFrame, QSplitter, QGroupBox, QToolButton)
+                             QMessageBox, QProgressBar, QFrame, QSplitter, QGroupBox, QToolButton, QInputDialog, QLineEdit)
 from PyQt5.QtGui import QImage, QPixmap, QFont, QIcon, QPalette, QColor
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtMultimediaWidgets import QVideoWidget
@@ -7,6 +7,8 @@ from video_thread import VideoThread  # 导入VideoThread类
 from posture import Posture  # 导入Posture类
 from video_thread import AutoScoreThread
 import os
+import requests
+import json
 
 
 class ModernButton(QPushButton):
@@ -98,10 +100,30 @@ class MainWindow(QWidget):
         """)
         self.theme_button.clicked.connect(self.toggle_theme)
         
+        # 创建API设置按钮
+        self.api_button = QToolButton()
+        self.api_button.setText("🔑")  # 显示钥匙图标
+        self.api_button.setToolTip("设置DeepSeek API密钥")
+        self.api_button.setFixedSize(36, 36)
+        self.api_button.setStyleSheet("""
+            QToolButton {
+                background-color: #2d3436;
+                color: white;
+                border: none;
+                border-radius: 18px;
+                font-size: 18px;
+            }
+            QToolButton:hover {
+                background-color: #3498db;
+            }
+        """)
+        self.api_button.clicked.connect(self.set_api_key)
+        
         # 添加到标题栏
         title_bar_layout.addStretch()
         title_bar_layout.addWidget(title_label)
         title_bar_layout.addStretch()
+        title_bar_layout.addWidget(self.api_button)
         title_bar_layout.addWidget(self.theme_button)
         
         # 创建主分割器
@@ -613,6 +635,17 @@ class MainWindow(QWidget):
             
             result_text += "</table><br>"
             
+            # 添加AI专家评价按钮
+            result_text += "<div style='margin:15px 0;'>"
+            result_text += "<a href='#ai_expert_button' style='display:inline-block; background-color:#8e44ad; color:white; border:none; border-radius:5px; padding:10px 20px; font-size:14px; text-decoration:none;'>获取AI专家评价</a>"
+            result_text += "</div>"
+            
+            # 添加AI专家评价区域 (初始隐藏)
+            result_text += "<div id='ai_expert_evaluation' style='background-color:#8e44ad; margin:15px 0; padding:15px; border-radius:5px; display:none;'>"
+            result_text += "<h4 style='color:white; margin:0;'>AI专家评价</h4>"
+            result_text += "<div id='ai_expert_content' style='color:white; margin:10px 0; text-align:left; font-size:14px;'>加载中...</div>"
+            result_text += "</div>"
+            
             # 添加测速结果显示
             result_text += "<div style='background-color:#3498db; margin:15px 0; padding:15px; border-radius:5px;'>"
             result_text += "<h4 style='color:white; margin:0;'>测速结果</h4>"
@@ -635,6 +668,9 @@ class MainWindow(QWidget):
             
             self.results_label.setText(result_text)
             
+            # 连接AI专家评价按钮点击事件
+            self.results_label.linkActivated.connect(self.handle_html_link)
+            
             # 显示消息
             QMessageBox.information(self, "评分结果", "评分结果已生成，详情请查看结果区域。\n图像保存在: " + abs_results_folder)
             
@@ -656,6 +692,147 @@ class MainWindow(QWidget):
         except Exception as e:
             print(f"Error displaying results: {e}")
             QMessageBox.warning(self, "结果显示错误", f"显示结果时发生错误: {str(e)}")
+            
+    def handle_html_link(self, link):
+        """处理HTML链接点击事件"""
+        print(f"链接被点击: {link}")
+        if link == "#ai_expert_button":
+            self.get_ai_expert_evaluation()
+            
+    def get_ai_expert_evaluation(self):
+        """获取AI专家评价"""
+        # 检查是否有API密钥
+        if not hasattr(self, 'deepseek_api_key') or not self.deepseek_api_key:
+            api_key = self.set_api_key()
+            if not api_key:
+                return
+        
+        # 准备评价内容
+        composite_score = "未知"
+        speed = "未知"
+        
+        # 尝试获取综合得分
+        try:
+            current_text = self.results_label.text()
+            import re
+            score_match = re.search(r'<div style=\'font-size:36px; color:#2ecc71; margin:10px 0;\'>(\d+)<span', current_text)
+            if score_match:
+                composite_score = score_match.group(1)
+                
+            # 尝试获取速度
+            speed_match = re.search(r'<div style=\'font-size:28px; color:white; margin:10px 0;\'>([0-9.]+)\s*<span', current_text)
+            if speed_match:
+                speed = speed_match.group(1)
+        except Exception as e:
+            print(f"提取评分信息失败: {e}")
+        
+        # 构建提示信息
+        prompt = f"""
+        作为一位专业的跳远训练教练，请对一名运动员的挺身式跳远表现进行评价。
+        
+        运动员的表现数据如下：
+        - 综合得分: {composite_score}/100
+        - 速度: {speed} m/s
+        
+        请从以下几个方面对运动员的表现进行评价：
+        1. 起跳姿态
+        2. 髋关节伸展
+        3. 腹部收缩
+        4. 速度表现
+        5. 给出针对性的训练建议
+        
+        请用专业、鼓励的语气进行点评，控制在300字以内。
+        """
+        
+        # 更新UI，显示加载中状态
+        current_html = self.results_label.text()
+        updated_html = current_html.replace('display:none', 'display:block').replace('加载中...', '正在获取AI专家评价，请稍候...')
+        self.results_label.setText(updated_html)
+        QApplication.processEvents()  # 强制更新UI
+        
+        try:
+            # 调用DeepSeek API
+            api_response = self.call_deepseek_api(prompt)
+            
+            # 处理API响应
+            expert_evaluation = "获取AI专家评价失败，请检查API密钥和网络连接。"
+            
+            if api_response and 'choices' in api_response and len(api_response['choices']) > 0:
+                expert_evaluation = api_response['choices'][0]['message']['content']
+                expert_evaluation = expert_evaluation.replace('\n', '<br>')
+            
+            # 更新UI
+            current_html = self.results_label.text()
+            updated_html = current_html.replace('正在获取AI专家评价，请稍候...', expert_evaluation)
+            self.results_label.setText(updated_html)
+            
+        except Exception as e:
+            print(f"获取AI专家评价失败: {e}")
+            # 更新UI显示错误
+            current_html = self.results_label.text()
+            updated_html = current_html.replace('正在获取AI专家评价，请稍候...', f"获取AI专家评价失败: {str(e)}")
+            self.results_label.setText(updated_html)
+            
+    def call_deepseek_api(self, prompt):
+        """调用DeepSeek API"""
+        if not hasattr(self, 'deepseek_api_key') or not self.deepseek_api_key:
+            return None
+            
+        try:
+            url = "https://api.deepseek.com/v1/chat/completions"
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.deepseek_api_key}"
+            }
+            
+            data = {
+                "model": "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": "你是一位专业的跳远教练，需要对运动员的表现进行专业评价。"},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 800
+            }
+            
+            response = requests.post(url, headers=headers, data=json.dumps(data))
+            return response.json()
+            
+        except Exception as e:
+            print(f"API调用失败: {e}")
+            return None
+            
+    def set_api_key(self):
+        """设置DeepSeek API密钥"""
+        current_key = getattr(self, 'deepseek_api_key', '')
+        masked_key = '********' if current_key else ''
+        
+        text, ok = QInputDialog.getText(
+            self, 
+            "设置DeepSeek API密钥", 
+            "请输入您的DeepSeek API密钥：", 
+            QLineEdit.Password, 
+            masked_key
+        )
+        
+        if ok and text:
+            # 如果用户输入了新的密钥但与掩码相同，则保持原密钥不变
+            if text != '********':
+                self.deepseek_api_key = text
+                QMessageBox.information(self, "设置成功", "DeepSeek API密钥设置成功！")
+                return self.deepseek_api_key
+            else:
+                # 用户没有更改密钥，保持原值
+                return current_key
+        elif ok and not text:
+            # 用户清除了密钥
+            self.deepseek_api_key = ''
+            QMessageBox.warning(self, "密钥已清除", "DeepSeek API密钥已被清除，AI专家评价功能将不可用。")
+            return ''
+        else:
+            # 用户取消
+            return current_key
 
     def update_progress(self, value):
         """更新进度条"""
