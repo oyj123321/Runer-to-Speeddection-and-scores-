@@ -45,6 +45,7 @@ class VideoThread(QThread):
         self._is_running = True
         self.tracker = tracker
         self.detector = Detector()
+        self.speed = 0.0  # 添加速度属性
 
     def run(self):
         # 加载视频文件
@@ -127,6 +128,7 @@ class VideoThread(QThread):
                 k = ending - start
                 if k > 0:
                     speed = round(4.0 * fps / k, 2)
+                    self.speed = speed  # 保存速度值
                 text_draw = "Count: " + str(count) + " Speed: " + str(speed) + "m/s"
                 output_image_frame = cv2.putText(img=output_image_frame, text=text_draw, org=(10, 50),
                                                  fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(255, 0, 0),
