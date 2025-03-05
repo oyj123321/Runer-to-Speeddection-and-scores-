@@ -389,8 +389,8 @@ class MainWindow(QWidget):
 
     def set_result_folder(self, folder_path):
         """设置结果文件夹路径"""
-        self.last_results_folder = folder_path
-        print(f"结果保存在: {folder_path}")
+        self.last_results_folder = os.path.abspath(folder_path)
+        print(f"结果保存在: {self.last_results_folder}")
 
     def score_processing_finished(self):
         """评分处理完成的回调函数"""
@@ -453,54 +453,55 @@ class MainWindow(QWidget):
 
     def view_results(self):
         """查看评分结果"""
-        if not self.last_results_folder or not os.path.exists(self.last_results_folder):
+        if not self.last_results_folder or not os.path.exists(os.path.abspath(self.last_results_folder)):
             QMessageBox.warning(self, "无结果", "没有可用的评分结果或结果文件夹不存在。")
             return
             
         try:
+            # 确保使用绝对路径
+            abs_results_folder = os.path.abspath(self.last_results_folder)
+            
+            # 打印一些调试信息
+            print(f"尝试访问结果文件夹: {abs_results_folder}")
+            print(f"文件夹是否存在: {os.path.exists(abs_results_folder)}")
+            print(f"文件夹内容: {os.listdir(abs_results_folder) if os.path.exists(abs_results_folder) else '不存在'}")
+            
             result_text = "<html><body style='text-align:center;'>"
             result_text += "<h3 style='color:#3498db;'>评分结果</h3>"
             result_text += "<table style='margin:0 auto; border-collapse:collapse; width:90%;'>"
             result_text += "<tr style='background-color:#2c3e50;'><th style='padding:8px; border:1px solid #3498db;'>评分项目</th><th style='padding:8px; border:1px solid #3498db;'>得分</th><th style='padding:8px; border:1px solid #3498db;'>状态</th></tr>"
             
             # 读取各项评分
-            take_off_path = os.path.join(self.last_results_folder, "take_off.jpg")
-            hip_extension_path = os.path.join(self.last_results_folder, "hip_extension.jpg")
-            abdominal_contraction_path = os.path.join(self.last_results_folder, "abdominal_contraction.jpg")
+            take_off_path = os.path.join(abs_results_folder, "take_off.jpg")
+            hip_extension_path = os.path.join(abs_results_folder, "hip_extension.jpg")
+            abdominal_contraction_path = os.path.join(abs_results_folder, "abdominal_contraction.jpg")
             
-            # 尝试从图像中读取实际分数
-            import cv2
-            import re
+            print(f"检查文件是否存在:")
+            print(f"take_off.jpg: {os.path.exists(take_off_path)}")
+            print(f"hip_extension.jpg: {os.path.exists(hip_extension_path)}")
+            print(f"abdominal_contraction.jpg: {os.path.exists(abdominal_contraction_path)}")
             
+            # 提取图像信息的函数
             def extract_score(image_path):
                 if not os.path.exists(image_path):
                     return "未生成", "❌"
                 
                 try:
-                    # 读取图像
-                    img = cv2.imread(image_path)
-                    # 转换为灰度图像
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    
-                    # 使用OCR提取文本（这里使用简化方法，通过图像检测分数）
-                    # 实际应用中可以使用tesseract或其他OCR库
-                    # 这里我们假设分数已经从文件名或其他方式获取
-                    
-                    # 提取分数的简化方法 - 检查图像左上角的文本区域
-                    score = "获取中..." 
-                    
-                    # 简单方法：从文件名获取最后修改时间作为替代
-                    import time
-                    modified_time = os.path.getmtime(image_path)
-                    # 将时间戳转换为可读格式
-                    time_str = time.strftime("%H:%M:%S", time.localtime(modified_time))
-                    
-                    return f"已生成 ({time_str})", "✅"
+                    # 直接检查文件是否存在，不尝试读取图像
+                    if os.path.getsize(image_path) > 0:
+                        # 不尝试读取和处理图像，直接返回成功状态
+                        import time
+                        modified_time = os.path.getmtime(image_path)
+                        time_str = time.strftime("%H:%M:%S", time.localtime(modified_time))
+                        
+                        return f"已生成 ({time_str})", "✅"
+                    else:
+                        return "文件为空", "⚠️"
                 except Exception as e:
                     print(f"Error extracting score: {e}")
                     return "读取错误", "⚠️"
             
-            # 获取各项评分状态
+            # 提取各项评分状态
             take_off_score, take_off_status = extract_score(take_off_path)
             hip_extension_score, hip_extension_status = extract_score(hip_extension_path)
             abdominal_contraction_score, abdominal_contraction_status = extract_score(abdominal_contraction_path)
@@ -511,24 +512,28 @@ class MainWindow(QWidget):
             result_text += f"<tr><td style='padding:8px; border:1px solid #3498db;'>腹部收缩</td><td style='padding:8px; border:1px solid #3498db;'>{abdominal_contraction_score}</td><td style='padding:8px; border:1px solid #3498db;'>{abdominal_contraction_status}</td></tr>"
             
             result_text += "</table><br>"
-            result_text += f"<p style='font-size:12px; color:#7f8c8d;'>结果保存在文件夹:<br>{self.last_results_folder}</p>"
+            result_text += f"<p style='font-size:12px; color:#7f8c8d;'>结果保存在文件夹:<br>{abs_results_folder}</p>"
             result_text += "</body></html>"
             
             self.results_label.setText(result_text)
             
             # 显示消息
-            QMessageBox.information(self, "评分结果", "评分结果已生成，详情请查看结果区域。\n图像保存在: " + self.last_results_folder)
+            QMessageBox.information(self, "评分结果", "评分结果已生成，详情请查看结果区域。\n图像保存在: " + abs_results_folder)
             
             # 打开结果文件夹
             import platform
             import subprocess
             
             if platform.system() == "Windows":
-                os.startfile(self.last_results_folder)
+                try:
+                    os.startfile(abs_results_folder)
+                except Exception as e:
+                    print(f"无法打开文件夹: {e}")
+                    QMessageBox.warning(self, "文件夹打开错误", f"无法打开结果文件夹: {e}")
             elif platform.system() == "Darwin":  # macOS
-                subprocess.Popen(["open", self.last_results_folder])
+                subprocess.Popen(["open", abs_results_folder])
             else:  # Linux
-                subprocess.Popen(["xdg-open", self.last_results_folder])
+                subprocess.Popen(["xdg-open", abs_results_folder])
                 
         except Exception as e:
             print(f"Error displaying results: {e}")

@@ -217,14 +217,20 @@ class Posture(object):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # 获取总帧数
 
         file = video_path.split("/")[-1]
+        if "\\" in video_path:
+            file = video_path.split("\\")[-1]
         file_name = file.split(".")[0]
         file_type = "." + file.split(".")[1]
-        output_dir = "./"
-
-        save_folder = os.path.join(output_dir, file_name)
-
+        
+        # 在当前工作目录下创建结果文件夹，避免中文路径问题
+        output_dir = os.getcwd()  # 获取当前工作目录
+        
+        # 确保文件名不包含可能导致问题的字符
+        safe_file_name = re.sub(r'[^\w\-_]', '_', file_name)
+        
+        save_folder = os.path.join(output_dir, safe_file_name)
         os.makedirs(save_folder, exist_ok=True)
-        save_path = os.path.join(save_folder, file_name + "_jump" + file_type)
+        save_path = os.path.join(save_folder, safe_file_name + "_jump" + file_type)
 
         vid_writer = cv2.VideoWriter(
             save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
