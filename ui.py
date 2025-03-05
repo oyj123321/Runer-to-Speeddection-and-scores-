@@ -41,57 +41,19 @@ class ModernButton(QPushButton):
         """)
 
 
-class ThemeButton(QToolButton):
-    def __init__(self, parent=None):
-        super(ThemeButton, self).__init__(parent)
-        self.setCheckable(True)
-        self.setChecked(True)  # 默认是暗色模式
-        self.setText("☀️")  # 显示太阳图标表示切换到亮色
-        self.setToolTip("切换至亮色主题")
-        self.setFixedSize(36, 36)
-        self.setStyleSheet("""
-            QToolButton {
-                background-color: #2d3436;
-                color: white;
-                border: none;
-                border-radius: 18px;
-                font-size: 18px;
-            }
-            QToolButton:hover {
-                background-color: #3498db;
-            }
-            QToolButton:checked {
-                background-color: #2d3436;
-            }
-        """)
-        self.clicked.connect(self.toggle_theme)
-        
-    def toggle_theme(self):
-        if self.isChecked():
-            # 暗色主题
-            self.setText("☀️")
-            self.setToolTip("切换至亮色主题")
-            self.parent().apply_dark_theme()
-        else:
-            # 亮色主题
-            self.setText("🌙")
-            self.setToolTip("切换至暗色主题")
-            self.parent().apply_light_theme()
-
-
 class MainWindow(QWidget):
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setWindowTitle("运动员姿态评分系统")
-        
-        # 主题切换按钮
-        self.theme_button = ThemeButton(self)
         
         # 创建所有UI组件
         self.create_ui_components()
         
         # 应用暗色主题
         self.apply_dark_theme()
+        
+        # 设置主题状态
+        self.is_dark_theme = True
 
     def create_ui_components(self):
         # 创建顶部标题栏
@@ -108,6 +70,30 @@ class MainWindow(QWidget):
             padding: 10px;
         """)
         title_label.setAlignment(Qt.AlignCenter)
+        
+        # 创建主题切换按钮
+        self.theme_button = QToolButton()
+        self.theme_button.setCheckable(True)
+        self.theme_button.setChecked(True)  # 默认是暗色模式
+        self.theme_button.setText("☀️")  # 显示太阳图标表示切换到亮色
+        self.theme_button.setToolTip("切换至亮色主题")
+        self.theme_button.setFixedSize(36, 36)
+        self.theme_button.setStyleSheet("""
+            QToolButton {
+                background-color: #2d3436;
+                color: white;
+                border: none;
+                border-radius: 18px;
+                font-size: 18px;
+            }
+            QToolButton:hover {
+                background-color: #3498db;
+            }
+            QToolButton:checked {
+                background-color: #2d3436;
+            }
+        """)
+        self.theme_button.clicked.connect(self.toggle_theme)
         
         # 添加到标题栏
         title_bar_layout.addStretch()
@@ -189,50 +175,82 @@ class MainWindow(QWidget):
         top_splitter.addWidget(results_frame)
         top_splitter.setSizes([3, 2])  # 设置比例
         
-        # 控制区域
+        # 控制区域 - 分为两个独立的功能区域
         control_frame = QFrame()
         control_frame.setFrameShape(QFrame.StyledPanel)
         control_frame.setStyleSheet("border: 1px solid #2980b9;")
-        control_frame.setMaximumHeight(150)
+        control_frame.setMaximumHeight(180)  # 增加高度以容纳更多控件
         
         control_layout = QHBoxLayout(control_frame)
         
-        # 视频操作组
-        video_group = QGroupBox("视频操作")
-        video_group_layout = QVBoxLayout()
+        # ===== 测速功能区 =====
+        speed_group = QGroupBox("运动员测速功能")
+        speed_group.setStyleSheet("""
+            QGroupBox {
+                background-color: rgba(41, 128, 185, 0.1);
+            }
+        """)
+        speed_group_layout = QVBoxLayout()
         
-        self.openButton = ModernButton("读取视频")
-        self.openButton.setToolTip("从本地选择一个视频文件进行分析")
-        self.openButton.clicked.connect(self.open_file)
+        # 测速视频选择按钮
+        self.openSpeedButton = ModernButton("选择测速视频")
+        self.openSpeedButton.setToolTip("选择用于测速分析的视频文件")
+        self.openSpeedButton.clicked.connect(self.open_speed_file)
         
-        self.processButton = ModernButton("人员测速")
+        # 测速处理按钮
+        self.processButton = ModernButton("开始测速")
         self.processButton.setToolTip("对视频中的运动员进行测速分析")
         self.processButton.setEnabled(False)
         self.processButton.clicked.connect(self.process_video)
         
-        video_group_layout.addWidget(self.openButton)
-        video_group_layout.addWidget(self.processButton)
-        video_group.setLayout(video_group_layout)
+        # 测速状态标签
+        self.speed_status_label = QLabel("未选择测速视频")
+        self.speed_status_label.setAlignment(Qt.AlignCenter)
+        self.speed_status_label.setStyleSheet("color: #7f8c8d; font-size: 12px;")
         
-        # 评分操作组
-        score_group = QGroupBox("评分操作")
+        speed_group_layout.addWidget(self.openSpeedButton)
+        speed_group_layout.addWidget(self.processButton)
+        speed_group_layout.addWidget(self.speed_status_label)
+        speed_group.setLayout(speed_group_layout)
+        
+        # ===== 评分功能区 =====
+        score_group = QGroupBox("姿态评分功能")
+        score_group.setStyleSheet("""
+            QGroupBox {
+                background-color: rgba(46, 204, 113, 0.1);
+            }
+        """)
         score_group_layout = QVBoxLayout()
         
-        self.autoScoreButton = ModernButton("自动打分")
+        # 评分视频选择按钮
+        self.openScoreButton = ModernButton("选择评分视频")
+        self.openScoreButton.setToolTip("选择用于姿态评分的视频文件")
+        self.openScoreButton.clicked.connect(self.open_score_file)
+        
+        # 开始评分按钮
+        self.autoScoreButton = ModernButton("开始评分")
         self.autoScoreButton.setToolTip("对运动员的姿态进行自动评分")
         self.autoScoreButton.setEnabled(False)
         self.autoScoreButton.clicked.connect(self.auto_score)
         
-        self.viewResultsButton = ModernButton("查看结果")
+        # 查看结果按钮
+        self.viewResultsButton = ModernButton("查看评分结果")
         self.viewResultsButton.setToolTip("查看最新的评分结果")
         self.viewResultsButton.setEnabled(False)
         self.viewResultsButton.clicked.connect(self.view_results)
         
+        # 评分状态标签
+        self.score_status_label = QLabel("未选择评分视频")
+        self.score_status_label.setAlignment(Qt.AlignCenter)
+        self.score_status_label.setStyleSheet("color: #7f8c8d; font-size: 12px;")
+        
+        score_group_layout.addWidget(self.openScoreButton)
         score_group_layout.addWidget(self.autoScoreButton)
         score_group_layout.addWidget(self.viewResultsButton)
+        score_group_layout.addWidget(self.score_status_label)
         score_group.setLayout(score_group_layout)
         
-        # 进度显示组
+        # ===== 进度显示区 =====
         progress_group = QGroupBox("处理进度")
         progress_group_layout = QVBoxLayout()
         
@@ -252,7 +270,7 @@ class MainWindow(QWidget):
         progress_group.setLayout(progress_group_layout)
         
         # 添加到控制布局
-        control_layout.addWidget(video_group)
+        control_layout.addWidget(speed_group)
         control_layout.addWidget(score_group)
         control_layout.addWidget(progress_group)
         
@@ -262,7 +280,7 @@ class MainWindow(QWidget):
         main_splitter.setSizes([3, 1])  # 设置比例
         
         # 底部状态信息
-        self.status_label = QLabel("系统就绪 - 请选择视频文件进行分析")
+        self.status_label = QLabel("系统就绪 - 请选择需要处理的视频文件")
         self.status_label.setStyleSheet("""
             font-size: 12px;
             color: #7f8c8d;
@@ -278,48 +296,120 @@ class MainWindow(QWidget):
         main_layout.addWidget(self.status_label)
         self.setLayout(main_layout)
 
-        # 存储最近处理的视频路径
-        self.last_video_path = None
-        self.last_results_folder = None
-        self.video_thread = None
+        # 存储视频路径
+        self.speed_video_path = None  # 测速视频路径
+        self.score_video_path = None  # 评分视频路径
+        self.last_results_folder = None  # 最近评分结果文件夹
+        self.video_thread = None  # 视频处理线程
+        self.auto_score_thread = None  # 评分处理线程
 
-    def open_file(self):
-        # 打开文件对话框选择视频文件
-        fileName, _ = QFileDialog.getOpenFileName(self, "打开视频", ".", "视频文件 (*.mp4 *.flv *.ts *.mts *.avi)")
+    def toggle_theme(self):
+        """切换主题"""
+        if self.theme_button.isChecked():
+            # 暗色主题
+            self.theme_button.setText("☀️")
+            self.theme_button.setToolTip("切换至亮色主题")
+            self.apply_dark_theme()
+            self.is_dark_theme = True
+        else:
+            # 亮色主题
+            self.theme_button.setText("🌙")
+            self.theme_button.setToolTip("切换至暗色主题")
+            self.apply_light_theme()
+            self.is_dark_theme = False
+
+    # 选择测速视频文件
+    def open_speed_file(self):
+        fileName, _ = QFileDialog.getOpenFileName(self, "选择测速视频", ".", "视频文件 (*.mp4 *.flv *.ts *.mts *.avi)")
         if fileName:
-            self.last_video_path = fileName
+            self.speed_video_path = fileName
             # 创建视频处理线程并连接信号以更新UI
             self.video_thread = VideoThread(fileName)
             self.video_thread.change_pixmap_signal.connect(self.update_image)
             self.video_thread.finished.connect(self.processing_finished)
             self.video_thread.progress_signal.connect(self.update_progress)
-            self.processButton.setEnabled(True)  # 启用测速按钮
-            self.autoScoreButton.setEnabled(True)  # 启用自动打分按钮
+            
+            # 启用测速按钮
+            self.processButton.setEnabled(True)
+            
             # 更新状态信息
-            self.status_label.setText(f"已选择文件: {fileName.split('/')[-1]}")
-            self.progress_label.setText(f"准备处理: {fileName.split('/')[-1]}")
+            file_name = fileName.split('/')[-1]
+            self.speed_status_label.setText(f"已选择: {file_name}")
+            self.status_label.setText(f"已选择测速视频: {file_name}")
+            self.progress_label.setText(f"准备测速: {file_name}")
+
+    # 选择评分视频文件
+    def open_score_file(self):
+        fileName, _ = QFileDialog.getOpenFileName(self, "选择评分视频", ".", "视频文件 (*.mp4 *.avi)")
+        if fileName:
+            self.score_video_path = fileName
+            
+            # 启用评分按钮
+            self.autoScoreButton.setEnabled(True)
+            
+            # 更新状态信息
+            file_name = fileName.split('/')[-1]
+            self.score_status_label.setText(f"已选择: {file_name}")
+            self.status_label.setText(f"已选择评分视频: {file_name}")
+            
             # 重置结果区域
             self.results_label.setText("尚未生成评分结果")
             self.viewResultsButton.setEnabled(False)
 
     def auto_score(self):
-        # 如果已经选择了视频，直接使用该视频，否则再次选择
-        video_path = self.last_video_path
-        if not video_path:
-            video_path, _ = QFileDialog.getOpenFileName(self, "选择视频文件", "", "视频文件 (*.mp4 *.avi)")
-        
-        if video_path:
-            self.last_video_path = video_path
-            self.auto_score_thread = AutoScoreThread(video_path)
-            self.auto_score_thread.change_pixmap_signal.connect(self.update_image)
-            self.auto_score_thread.start()
-            # 更新状态
-            self.status_label.setText(f"正在处理: {video_path.split('/')[-1]}")
-            self.progress_label.setText(f"评分中: {video_path.split('/')[-1]}")
+        # 确保已选择评分视频
+        if not self.score_video_path:
+            QMessageBox.warning(self, "未选择视频", "请先选择用于评分的视频文件。")
+            return
             
-            # 设置结果文件夹路径
-            file_name = video_path.split("/")[-1].split(".")[0]
-            self.last_results_folder = os.path.join("./", file_name)
+        # 创建评分线程
+        self.auto_score_thread = AutoScoreThread(self.score_video_path)
+        self.auto_score_thread.change_pixmap_signal.connect(self.update_image)
+        self.auto_score_thread.start()
+        
+        # 更新状态
+        file_name = self.score_video_path.split('/')[-1]
+        self.status_label.setText(f"正在处理评分视频: {file_name}")
+        self.progress_label.setText(f"评分中: {file_name}")
+        
+        # 设置结果文件夹路径
+        file_name_no_ext = file_name.split(".")[0]
+        self.last_results_folder = os.path.join("./", file_name_no_ext)
+
+    def process_video(self):
+        # 确保已选择测速视频
+        if not self.speed_video_path or self.video_thread is None:
+            QMessageBox.warning(self, "未选择视频", "请先选择用于测速的视频文件。")
+            return
+            
+        # 启动视频处理线程
+        self.progressBar.setValue(0)
+        self.progressBar.setVisible(True)
+        self.video_thread.start()
+        
+        # 更新状态
+        file_name = self.speed_video_path.split('/')[-1]
+        self.progress_label.setText(f"测速中: {file_name}")
+        self.status_label.setText(f"正在处理测速视频: {file_name}")
+
+    def processing_finished(self):
+        # 区分是测速还是评分完成
+        if self.sender() == self.video_thread:
+            self.progress_label.setText("测速完成")
+            self.status_label.setText("测速处理已完成")
+            QMessageBox.information(self, "处理完成", "视频测速处理已完成。")
+        else:
+            self.progress_label.setText("评分完成")
+            self.status_label.setText("评分处理已完成")
+            self.viewResultsButton.setEnabled(True)
+            QMessageBox.information(self, "处理完成", "视频评分处理已完成，可查看评分结果。")
+
+    def update_image(self, qt_img):
+        # 使用处理后的帧图像更新标签
+        self.label.setPixmap(QPixmap.fromImage(qt_img).scaled(
+            self.label.width(), self.label.height(),
+            Qt.KeepAspectRatio, Qt.SmoothTransformation
+        ))
 
     def view_results(self):
         """查看评分结果"""
@@ -391,33 +481,9 @@ class MainWindow(QWidget):
         else:
             QMessageBox.warning(self, "未找到结果", "未找到评分结果或结果文件夹不存在。")
 
-    def update_image(self, qt_img):
-        # 使用处理后的帧图像更新标签
-        self.label.setPixmap(QPixmap.fromImage(qt_img).scaled(
-            self.label.width(), self.label.height(),
-            Qt.KeepAspectRatio, Qt.SmoothTransformation
-        ))
-
-    def process_video(self):
-        # 启动视频处理线程
-        if self.video_thread is not None:
-            self.progressBar.setValue(0)
-            self.progressBar.setVisible(True)
-            self.video_thread.start()
-            # 更新状态
-            self.progress_label.setText("处理中...")
-            self.status_label.setText("正在处理视频，请稍候...")
-
     def update_progress(self, value):
         # 更新进度条
         self.progressBar.setValue(value)
-
-    def processing_finished(self):
-        # 视频处理完成时显示消息框
-        self.progress_label.setText("处理完成")
-        self.status_label.setText("视频处理已完成")
-        self.viewResultsButton.setEnabled(True)
-        QMessageBox.information(self, "处理完成", "视频处理已完成，可查看评分结果。")
 
     def apply_dark_theme(self):
         """应用暗色主题"""
