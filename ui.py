@@ -642,8 +642,8 @@ class MainWindow(QWidget):
             
             # 添加AI专家评价区域 (初始隐藏)
             result_text += "<div id='ai_expert_evaluation' style='background-color:#8e44ad; margin:15px 0; padding:15px; border-radius:5px; display:none;'>"
-            result_text += "<h4 style='color:white; margin:0;'>AI专家评价</h4>"
-            result_text += "<div id='ai_expert_content' style='color:white; margin:10px 0; text-align:left; font-size:14px;'>加载中...</div>"
+            result_text += "<h4 style='color:white; margin:0 0 15px 0;'>AI专家评价</h4>"
+            result_text += "<div id='ai_expert_content' style='color:white; margin:10px 0; text-align:left; font-size:14px; line-height:1.5; background-color:rgba(0,0,0,0.1); padding:15px; border-radius:3px;'>加载中...</div>"
             result_text += "</div>"
             
             # 添加测速结果显示
@@ -709,7 +709,6 @@ class MainWindow(QWidget):
         
         # 准备评价内容
         composite_score = "未知"
-        speed = "未知"
         
         # 尝试获取综合得分
         try:
@@ -719,29 +718,24 @@ class MainWindow(QWidget):
             if score_match:
                 composite_score = score_match.group(1)
                 
-            # 尝试获取速度
-            speed_match = re.search(r'<div style=\'font-size:28px; color:white; margin:10px 0;\'>([0-9.]+)\s*<span', current_text)
-            if speed_match:
-                speed = speed_match.group(1)
         except Exception as e:
             print(f"提取评分信息失败: {e}")
         
-        # 构建提示信息
+        # 构建提示信息 - 不包含速度评价
         prompt = f"""
-        作为一位专业的跳远训练教练，请对一名运动员的挺身式跳远表现进行评价。
+        作为一位专业的跳远训练教练，请对一名运动员的挺身式跳远姿态表现进行评价。
         
-        运动员的表现数据如下：
-        - 综合得分: {composite_score}/100
-        - 速度: {speed} m/s
+        运动员的姿态评分数据如下：
+        - 综合评分: {composite_score}/100
         
-        请从以下几个方面对运动员的表现进行评价：
+        请从以下几个方面对运动员的姿态表现进行评价：
         1. 起跳姿态
         2. 髋关节伸展
         3. 腹部收缩
-        4. 速度表现
-        5. 给出针对性的训练建议
+        4. 给出针对性的训练建议
         
         请用专业、鼓励的语气进行点评，控制在300字以内。
+        要求：评价内容要分段落组织，每个要点一个段落，不要所有内容都在一段里。
         """
         
         # 更新UI，显示加载中状态
@@ -759,7 +753,28 @@ class MainWindow(QWidget):
             
             if api_response and 'choices' in api_response and len(api_response['choices']) > 0:
                 expert_evaluation = api_response['choices'][0]['message']['content']
-                expert_evaluation = expert_evaluation.replace('\n', '<br>')
+                
+                # 改进文本格式化 - 将换行符替换为HTML段落标签
+                # 先分割成段落
+                paragraphs = expert_evaluation.strip().split('\n\n')
+                formatted_text = ""
+                
+                for paragraph in paragraphs:
+                    # 如果段落中有标题（数字+点+空格 开头的文本）
+                    if re.match(r'^\d+\.', paragraph.strip()):
+                        # 添加粗体样式
+                        formatted_paragraph = f"<p style='margin-bottom:10px;'><strong>{paragraph}</strong></p>"
+                    else:
+                        # 普通段落
+                        formatted_paragraph = f"<p style='margin-bottom:10px;'>{paragraph}</p>"
+                    
+                    formatted_text += formatted_paragraph
+                
+                # 如果没有检测到段落，则把单个换行符转换为<br>
+                if not paragraphs or len(paragraphs) <= 1:
+                    formatted_text = expert_evaluation.replace('\n', '<br>')
+                
+                expert_evaluation = formatted_text
             
             # 更新UI
             current_html = self.results_label.text()
