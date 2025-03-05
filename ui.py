@@ -409,7 +409,7 @@ class MainWindow(QWidget):
         # 显示消息
         QMessageBox.information(self, "处理完成", "视频评分处理已完成，可查看评分结果。")
         
-        # 自动显示结果
+        # 自动显示结果 - 同时会显示测速结果（如果有）
         self.view_results()
 
     def process_video(self):
@@ -442,15 +442,51 @@ class MainWindow(QWidget):
             if hasattr(self.video_thread, 'speed') and self.video_thread.speed:
                 self.last_speed_value = str(self.video_thread.speed)
                 print(f"保存测速结果: {self.last_speed_value} m/s")
+                
+                # 在测速完成后马上更新结果显示
+                self.update_results_with_speed()
+            else:
+                print("无法获取测速结果")
             
             # 启用按钮
             self.processButton.setEnabled(True)
             self.openSpeedButton.setEnabled(True)
             
-            QMessageBox.information(self, "处理完成", "视频测速处理已完成。")
+            QMessageBox.information(self, "处理完成", f"视频测速处理已完成。测得速度: {self.last_speed_value} m/s")
         else:
             # 这部分已经移到score_processing_finished方法中
             pass
+            
+    def update_results_with_speed(self):
+        """更新结果显示区域，显示最近的测速结果"""
+        if not hasattr(self, 'last_speed_value') or not self.last_speed_value:
+            return
+            
+        speed_result = f"<div style='background-color:#3498db; margin:15px 0; padding:15px; border-radius:5px;'>"
+        speed_result += f"<h4 style='color:white; margin:0;'>测速结果</h4>"
+        speed_result += f"<div style='font-size:28px; color:white; margin:10px 0;'>{self.last_speed_value} <span style='font-size:18px;'>m/s</span></div>"
+        speed_result += f"</div>"
+        
+        # 获取当前结果文本
+        current_text = self.results_label.text()
+        
+        # 如果是默认文本，则完全替换
+        if current_text == "尚未生成评分结果":
+            self.results_label.setText(f"<html><body style='text-align:center;'><h3 style='color:#3498db;'>测试结果</h3>{speed_result}</body></html>")
+        # 如果已有结果，但没有测速部分，则添加
+        elif "<div style='background-color:#3498db;" not in current_text:
+            # 在</body>前插入测速结果
+            new_text = current_text.replace("</body></html>", f"{speed_result}</body></html>")
+            self.results_label.setText(new_text)
+        # 如果已有测速部分，则更新
+        else:
+            # 替换掉旧的测速结果
+            start_idx = current_text.find("<div style='background-color:#3498db;")
+            end_idx = current_text.find("</div>", start_idx)
+            end_idx = current_text.find("</div>", end_idx + 6) + 6  # 找到包含整个测速div的结束标签
+            
+            new_text = current_text[:start_idx] + speed_result + current_text[end_idx:]
+            self.results_label.setText(new_text)
 
     def update_image(self, qt_img):
         """更新图像显示"""
@@ -581,12 +617,15 @@ class MainWindow(QWidget):
             result_text += "<div style='background-color:#3498db; margin:15px 0; padding:15px; border-radius:5px;'>"
             result_text += "<h4 style='color:white; margin:0;'>测速结果</h4>"
             
-            # 获取速度值 - 这里模拟数据，实际应该从视频处理中获取
-            speed_value = "4.32"  # 默认值
+            # 获取速度值
+            speed_value = "0.00"  # 默认值
             
             # 如果有实际速度数据，则使用
-            if hasattr(self, 'last_speed_value') and self.last_speed_value:
+            if hasattr(self, 'last_speed_value') and self.last_speed_value and self.last_speed_value != "0.00":
                 speed_value = self.last_speed_value
+                print(f"显示测速结果: {speed_value} m/s")
+            else:
+                print(f"未找到有效的测速结果，last_speed_value = {getattr(self, 'last_speed_value', '未设置')}")
                 
             result_text += f"<div style='font-size:28px; color:white; margin:10px 0;'>{speed_value} <span style='font-size:18px;'>m/s</span></div>"
             result_text += "</div>"
