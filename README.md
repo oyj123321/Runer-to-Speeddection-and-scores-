@@ -97,5 +97,5 @@ python main.py --video path/to/video.mp4 --sport gymnastics
 
 如有任何问题或建议，请通过以下方式联系我们：
 
-- 邮箱：your.email@example.com
+- 邮箱：283664393@qq.com
 - GitHub Issues
