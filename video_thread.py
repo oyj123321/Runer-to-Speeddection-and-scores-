@@ -54,6 +54,7 @@ class VideoThread(QThread):
         self.display_height = 720  # 显示分辨率高度
         self.early_stop_threshold = 0.8  # 提高到80%，确保不会错过重要帧
         self.overlap_margin = 5  # 添加重叠检测的边界容差
+        self.speed_calculated = False  # 新增标志，表示是否已完成测速
 
     def run(self):
         # 加载视频文件
@@ -216,6 +217,16 @@ class VideoThread(QThread):
                     # 根据帧数差计算速度，考虑帧跳过因素
                     speed = round(4.0 * fps / (k * self.frame_skip), 2)
                     self.speed = speed  # 保存速度值
+                    
+                    # 如果已经获得有效的速度值且count达到2（一个完整的测速过程），立即停止处理
+                    if count >= 2 and len(list_overlapping_blue_polygon) > 0 and len(list_overlapping_yellow_polygon) > 0:
+                        print(f"已完成测速，检测到速度: {speed} m/s，提前结束处理！")
+                        print(f"蓝色区域检测到的对象: {list_overlapping_blue_polygon}")
+                        print(f"黄色区域检测到的对象: {list_overlapping_yellow_polygon}")
+                        self.speed_calculated = True  # 标记已完成测速
+                        
+                        # 直接跳到结果显示，无需继续处理后续帧
+                        break  # 直接跳出循环，结束处理
                 
                 # 在显示帧上绘制文本信息
                 text_draw = "Count: " + str(count) + " Speed: " + str(speed) + "m/s"
@@ -228,6 +239,14 @@ class VideoThread(QThread):
                 output_image_frame = cv2.putText(img=output_image_frame, text=processing_info, org=(10, 90),
                                                fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.7, color=(0, 255, 0),
                                                thickness=2)
+                
+                # 在检测到蓝色或黄色区域重叠时，在画面上标记
+                if len(list_overlapping_blue_polygon) > 0:
+                    cv2.putText(output_image_frame, "蓝色区域已检测", (10, 130), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+                if len(list_overlapping_yellow_polygon) > 0:
+                    cv2.putText(output_image_frame, "黄色区域已检测", (10, 170), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
                 qt_img = self.convert_cv_to_qt(output_image_frame)
                 self.change_pixmap_signal.emit(qt_img)
@@ -254,9 +273,20 @@ class VideoThread(QThread):
             cv2.putText(result_frame, result_text, (int(self.display_width/2) - 250, int(self.display_height/2)), 
                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
             
-            processing_info = f"处理了 {processed_frames} 帧 (每 {self.frame_skip} 帧处理一次)"
-            cv2.putText(result_frame, processing_info, (int(self.display_width/2) - 250, int(self.display_height/2) + 50), 
-                      cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # 根据测速是否提前完成显示不同信息
+            if self.speed_calculated:
+                processing_info = f"成功完成测速! 处理了 {processed_frames} 帧"
+                cv2.putText(result_frame, processing_info, (int(self.display_width/2) - 250, int(self.display_height/2) + 50), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                
+                # 添加一些测速细节
+                time_info = f"用时: {k * self.frame_skip / fps:.2f} 秒通过 4 米距离"
+                cv2.putText(result_frame, time_info, (int(self.display_width/2) - 250, int(self.display_height/2) + 100), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+            else:
+                processing_info = f"处理了 {processed_frames} 帧 (每 {self.frame_skip} 帧处理一次)"
+                cv2.putText(result_frame, processing_info, (int(self.display_width/2) - 250, int(self.display_height/2) + 50), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             
             # 转换为Qt图像并发送
             qt_img = self.convert_cv_to_qt(result_frame)
