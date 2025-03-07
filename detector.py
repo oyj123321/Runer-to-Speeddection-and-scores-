@@ -19,7 +19,7 @@ class Detector:
         self.weights = './weights/yolov5m.pt'
 
         self.device = '0' if torch.cuda.is_available() else 'cpu'
-        print(f"使用设备: {self.device}")
+        print(f"Using device: {self.device}")
         self.device = select_device(self.device)
 
         '''加载 YOLOv5 模型的权重文件
@@ -50,13 +50,13 @@ class Detector:
         
     def warmup(self):
         """预热模型，提高后续推理性能"""
-        print("正在预热模型...")
+        print("Warming up model...")
         # 创建一个随机输入
         dummy_input = torch.zeros((1, 3, self.img_size, self.img_size), device=self.device)
         # 进行几次预热运行
         for _ in range(self.warmup_runs):
             _ = self.m(dummy_input)
-        print("模型预热完成")
+        print("Model warmup complete")
 
     def preprocess(self, img):
         img0 = img.copy()  # 创建一个原始图像 img 的副本 img0，以便后续使用
@@ -148,7 +148,7 @@ class Detector:
                 
                 # 检查是否超时
                 if time.time() - start_time > max_inference_time:
-                    print(f"推理时间过长: {time.time() - start_time:.2f}s，返回简化结果")
+                    print(f"Inference timeout: {time.time() - start_time:.2f}s, returning simplified result")
                     # 如果已经超时，使用简化的处理方法
                     boxes = []
                     if self.last_features is not None:
@@ -158,7 +158,7 @@ class Detector:
                         # 如果没有上一帧结果，返回空列表
                         return boxes
             except Exception as e:
-                print(f"推理过程错误: {e}")
+                print(f"Inference error: {e}")
                 # 如果发生错误，使用上一帧的结果
                 if self.last_features is not None:
                     return self.last_features
@@ -191,6 +191,6 @@ class Detector:
         
         # 打印检测到的目标数量
         if len(boxes) > 0:
-            print(f"检测到 {len(boxes)} 个人体目标")
+            print(f"Detected {len(boxes)} persons")
         
         return boxes

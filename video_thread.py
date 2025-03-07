@@ -220,9 +220,9 @@ class VideoThread(QThread):
                     
                     # 如果已经获得有效的速度值且count达到2（一个完整的测速过程），立即停止处理
                     if count >= 2 and len(list_overlapping_blue_polygon) > 0 and len(list_overlapping_yellow_polygon) > 0:
-                        print(f"已完成测速，检测到速度: {speed} m/s，提前结束处理！")
-                        print(f"蓝色区域检测到的对象: {list_overlapping_blue_polygon}")
-                        print(f"黄色区域检测到的对象: {list_overlapping_yellow_polygon}")
+                        print(f"Speed calculated: {speed} m/s, stopping early!")
+                        print(f"Blue region objects: {list_overlapping_blue_polygon}")
+                        print(f"Yellow region objects: {list_overlapping_yellow_polygon}")
                         self.speed_calculated = True  # 标记已完成测速
                         
                         # 直接跳到结果显示，无需继续处理后续帧
@@ -242,10 +242,10 @@ class VideoThread(QThread):
                 
                 # 在检测到蓝色或黄色区域重叠时，在画面上标记
                 if len(list_overlapping_blue_polygon) > 0:
-                    cv2.putText(output_image_frame, "蓝色区域已检测", (10, 130), 
+                    cv2.putText(output_image_frame, "Blue region detected", (10, 130), 
                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
                 if len(list_overlapping_yellow_polygon) > 0:
-                    cv2.putText(output_image_frame, "黄色区域已检测", (10, 170), 
+                    cv2.putText(output_image_frame, "Yellow region detected", (10, 170), 
                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
                 qt_img = self.convert_cv_to_qt(output_image_frame)
@@ -269,22 +269,22 @@ class VideoThread(QThread):
             # 创建一个带有最终结果的图像
             result_frame = last_display_frame.copy()
             # 绘制大号的速度文本
-            result_text = f"最终测速结果: {speed} m/s"
+            result_text = f"Final Speed: {speed} m/s"
             cv2.putText(result_frame, result_text, (int(self.display_width/2) - 250, int(self.display_height/2)), 
                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
             
             # 根据测速是否提前完成显示不同信息
             if self.speed_calculated:
-                processing_info = f"成功完成测速! 处理了 {processed_frames} 帧"
+                processing_info = f"Speed calculation complete! Processed {processed_frames} frames"
                 cv2.putText(result_frame, processing_info, (int(self.display_width/2) - 250, int(self.display_height/2) + 50), 
                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                 
                 # 添加一些测速细节
-                time_info = f"用时: {k * self.frame_skip / fps:.2f} 秒通过 4 米距离"
+                time_info = f"Time: {k * self.frame_skip / fps:.2f} seconds for 4 meters"
                 cv2.putText(result_frame, time_info, (int(self.display_width/2) - 250, int(self.display_height/2) + 100), 
                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
             else:
-                processing_info = f"处理了 {processed_frames} 帧 (每 {self.frame_skip} 帧处理一次)"
+                processing_info = f"Processed {processed_frames} frames (every {self.frame_skip} frame)"
                 cv2.putText(result_frame, processing_info, (int(self.display_width/2) - 250, int(self.display_height/2) + 50), 
                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             
